@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 genres = {
     'Fiction': 'fiction',
@@ -17,13 +20,15 @@ genres = {
 
 books_data = []
 
-
 session = requests.Session()
+session.verify = False  
 session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 })
 
-print("Optimized Deep Scraping started...")
+print("Optimized Deep Scraping with SSL Bypass started...")
 
 for genre_name, search_keyword in genres.items():
     print(f"\nScraping Genre: {genre_name}...")
@@ -33,8 +38,7 @@ for genre_name, search_keyword in genres.items():
         url = f"https://www.gutenberg.org/ebooks/search/?query={search_keyword}&start_index={start_index}"
         
         try:
-           
-            response = session.get(url, timeout=20)
+            response = session.get(url, timeout=15)
             if response.status_code != 200:
                 print(f"Failed to fetch page {page}, status code: {response.status_code}")
                 break
@@ -67,7 +71,7 @@ for genre_name, search_keyword in genres.items():
                 ebook_no = "N/A"
                 author_years = "N/A"
 
-                
+               
                 if book_link != "N/A":
                     try:
                         detail_res = session.get(book_link, timeout=10)
@@ -99,9 +103,9 @@ for genre_name, search_keyword in genres.items():
                                             years_match = re.search(r'\d{4}-\d{4}', val)
                                             if years_match:
                                                 author_years = years_match.group(0)
-                        time.sleep(0.2)
+                        time.sleep(0.1)
                     except Exception:
-                        pass 
+                        pass
 
                 books_data.append({
                     'Book_ID': book_id,
@@ -121,7 +125,7 @@ for genre_name, search_keyword in genres.items():
 
         except Exception as e:
             print(f"Error on page {page}: {e}")
-            continue 
+            continue
 
     print(f"Collected {len(books_data)} books so far...")
     if len(books_data) >= 2000:
