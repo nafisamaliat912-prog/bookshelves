@@ -16,19 +16,19 @@ df['Subject_Code'] = df['Subject'].astype('category').cat.codes
 df['Category_Code_Num'] = df['Category_Code'].astype('category').cat.codes
 
 X = df[['Genre_Code', 'Language_Code', 'Subject_Code', 'Category_Code_Num']]
-Y = df['Is_Popular']
+y = df['Is_Popular']
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 model = DecisionTreeClassifier(max_depth=6, random_state=42)
-model.fit(X_train, Y_train)
+model.fit(X_train, y_train)
 
 predictions = model.predict(X_test)
-accuracy = accuracy_score(Y_test, predictions)
+accuracy = accuracy_score(y_test, predictions)
 
 print('----------------------------------------')
 print(f"Task 1: Classification Model Finished")
 print(f"Model Accuracy: {accuracy * 100:.2f}%")
 print('----------------------------------------')
 print("\nClassification Report:")
-print(classification_report(Y_test, predictions))
+print(classification_report(y_test, predictions))
