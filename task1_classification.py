@@ -1,22 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import confusion_matrix
 
-plt.style.use('dark_background')
-BG_COLOR = '#030b1e'
-
-def apply_3d_style(ax):
-    ax.set_facecolor(BG_COLOR)
-    ax.xaxis.pane.set_edgecolor('#00f0ff')
-    ax.yaxis.pane.set_edgecolor('#00f0ff')
-    ax.zaxis.pane.set_edgecolor('#00f0ff')
-    ax.xaxis.pane.fill = False
-    ax.yaxis.pane.fill = False
-    ax.zaxis.pane.fill = False
-    ax.grid(True, color='#0a2540', linestyle='--', alpha=0.7)
+plt.style.use('default')
+BRIGHT_BG = '#ffffff'
 
 df = pd.read_csv('gutenberg_books_cleaned.csv')
 
@@ -26,7 +18,7 @@ df['Is_Popular'] = (df['Downloads'] > download_threshold).astype(int)
 
 df['Title_Length'] = df['Title'].fillna('').apply(len)
 df['Author_Length'] = df['Author'].fillna('').apply(len)
-df['Release_Year'] = df['Release_Date'].astype(str).str.extract(r'(\d{4})').fillna(1900).astype(int)
+df['Release_Year'] = pd.to_numeric(df['Release_Date'].astype(str).str.extract(r'(\d{4})')[0], errors='coerce').fillna(1900).astype(int)
 
 categorical_cols = ['Genre', 'Language', 'Subject', 'Category_Code', 'Copyright_Status']
 for col in categorical_cols:
@@ -39,10 +31,6 @@ features = [
     'Book_ID_Num', 'EBook_No', 'Release_Year', 'Title_Length', 'Author_Length',
     'Genre_Code', 'Language_Code', 'Subject_Code', 'Category_Code_Code', 'Copyright_Status_Code'
 ]
-feature_names_readable = [
-    'Book ID', 'EBook No', 'Release Year', 'Title Length', 'Author Length',
-    'Genre', 'Language', 'Subject', 'Category Code', 'Copyright Status'
-]
 
 X = df[features]
 Y = df['Is_Popular']
@@ -50,103 +38,123 @@ Y = df['Is_Popular']
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42, stratify=Y)
 model = RandomForestClassifier(n_estimators=150, max_depth=10, random_state=42)
 model.fit(X_train, Y_train)
-predictions = model.predict(X_test)
+acc_score = model.score(X_test, Y_test) * 100
+y_pred = model.predict(X_test)
 
-fig1 = plt.figure(figsize=(9, 6), facecolor=BG_COLOR)
-ax1 = fig1.add_subplot(111, projection='3d')
-apply_3d_style(ax1)
+df_valid = df[(df['Release_Year'] >= 1880) & (df['Release_Year'] <= 2025)].copy()
 
-top_genres = df['Genre'].value_counts().head(7).index
+fig1, ax1 = plt.subplots(figsize=(9, 6), facecolor=BRIGHT_BG)
+ax1.set_facecolor(BRIGHT_BG)
+
+top_genres = df['Genre'].value_counts().head(6).index.tolist()
 df_top = df[df['Genre'].isin(top_genres)]
-genre_pop = df_top.groupby(['Genre', 'Is_Popular']).size().unstack().fillna(0)
 
-x = np.arange(len(top_genres))
-ax1.plot(x, np.zeros_like(x), genre_pop[1], color='#00f0ff', linewidth=3.5, label='Popular Category', marker='o')
-ax1.plot(x, np.ones_like(x) * 2, genre_pop[0], color='#ff007f', linewidth=3.5, label='Non-Popular Category', marker='s')
+genre_pop_counts = df_top.groupby(['Genre', 'Is_Popular']).size().unstack(fill_value=0)
 
-ax1.set_xticks(x)
-ax1.set_xticklabels(top_genres, rotation=25, ha='right', color='#e0f7fa', fontsize=8)
-ax1.set_yticks([0, 2])
-ax1.set_yticklabels(['Popular', 'Non-Popular'], color='#e0f7fa', fontsize=8)
-ax1.set_zlabel('Book Count', color='#80f7ff', fontweight='bold')
-ax1.view_init(elev=22, azim=-50)
-ax1.set_title('Figure 1: 3D Ribbon Genre Distribution', color='#00f0ff', fontsize=11, fontweight='bold')
-ax1.legend(facecolor='#021024', edgecolor='#00f0ff', labelcolor='#ffffff')
+x_indices = np.arange(len(top_genres))
+width = 0.35
 
-fig2 = plt.figure(figsize=(9, 6), facecolor=BG_COLOR)
-ax2 = fig2.add_subplot(111, projection='3d')
-apply_3d_style(ax2)
+rects1 = ax1.bar(x_indices - width/2, genre_pop_counts[0], width, label='Non-Popular', color='#f59e0b', edgecolor='none')
+rects2 = ax1.bar(x_indices + width/2, genre_pop_counts[1], width, label='Popular', color='#2563eb', edgecolor='none')
 
-df_valid_years = df[(df['Release_Year'] >= 1880) & (df['Release_Year'] <= 2025)]
-yearly_downloads = df_valid_years.groupby('Release_Year')['Downloads'].mean().reset_index()
+ax1.set_title('1. Genre Wise Book Count Distribution', fontsize=12, fontweight='bold', pad=15)
+ax1.set_xlabel('Genre', fontweight='bold', color='#334155')
+ax1.set_ylabel('Book Count', fontweight='bold', color='#334155')
+ax1.set_xticks(x_indices)
+ax1.set_xticklabels(top_genres, rotation=15, ha='right')
+ax1.grid(True, color='#e2e8f0', linestyle=':', axis='y')
+ax1.legend(loc='upper right', frameon=True, facecolor='#f8fafc', edgecolor='#cbd5e1')
 
-X_years = yearly_downloads['Release_Year'].values
-Z_downloads = yearly_downloads['Downloads'].values
-Y_depth = np.linspace(0, 4, 15)
+fig2, ax2 = plt.subplots(figsize=(9, 6), facecolor=BRIGHT_BG)
+ax2.set_facecolor(BRIGHT_BG)
 
-X_grid, Y_grid = np.meshgrid(X_years, Y_depth)
-Z_grid = np.tile(Z_downloads, (len(Y_depth), 1))
+decade_downloads = df_valid.groupby(pd.cut(df_valid['Release_Year'], bins=8))['Downloads'].mean()
+decade_labels = [f"{int(b.left)}-{int(b.right)}" for b in decade_downloads.index]
+bar_colors_fig2 = ['#2563eb', '#0d9488', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#0284c7']
 
-surf = ax2.plot_surface(X_grid, Y_grid, Z_grid, cmap='cool', edgecolor='none', alpha=0.85)
-ax2.set_xlabel('Release Year', color='#80f7ff', fontweight='bold')
-ax2.set_zlabel('Avg Downloads', color='#80f7ff', fontweight='bold')
-ax2.view_init(elev=28, azim=-55)
-ax2.set_title('Figure 2: 3D Surface Release Timeline', color='#00f0ff', fontsize=11, fontweight='bold')
+bars2 = ax2.bar(decade_labels, decade_downloads.values, color=bar_colors_fig2, width=0.6)
 
-fig3 = plt.figure(figsize=(9, 6), facecolor=BG_COLOR)
-ax3 = fig3.add_subplot(111, projection='3d')
-apply_3d_style(ax3)
+for bar in bars2:
+    height = bar.get_height()
+    if not np.isnan(height) and height > 0:
+        ax2.text(bar.get_x() + bar.get_width()/2., height + 50, f'{int(height)}',
+                 ha='center', va='bottom', fontsize=9, fontweight='bold', color='#1e293b')
 
-importances = pd.Series(model.feature_importances_, index=feature_names_readable).sort_values(ascending=True)
+ax2.set_title('2. Historical Release Year vs Average Downloads', fontsize=12, fontweight='bold', pad=15)
+ax2.set_xlabel('Release Year Period', fontweight='bold', color='#334155')
+ax2.set_ylabel('Average Downloads', fontweight='bold', color='#334155')
+ax2.tick_params(axis='x', rotation=20)
+ax2.grid(True, color='#e2e8f0', linestyle=':', axis='y')
 
-y_pos = np.arange(len(importances))
-x_pos = np.zeros(len(importances))
-z_pos = np.zeros(len(importances))
+fig3, ax3 = plt.subplots(figsize=(9, 6), facecolor=BRIGHT_BG)
+ax3.set_facecolor(BRIGHT_BG)
 
-dx = importances.values * 100
-dy = np.ones(len(importances)) * 0.5
-dz = np.ones(len(importances)) * 0.8
+importances = model.feature_importances_
+feat_importances = pd.Series(importances, index=features).sort_values(ascending=False).head(6)
+total_imp = feat_importances.sum()
 
-ax3.bar3d(x_pos, y_pos, z_pos, dx, dy, dz, color='#00f0ff', edgecolor='#030b1e', alpha=0.85)
+tree_colors = ['#e11d48', '#0284c7', '#d97706', '#0d9488', '#7c3aed', '#ea580c']
 
-for i, (val, name) in enumerate(zip(dx, importances.index)):
-    ax3.text(val + 1, i, 0.5, f'{val:.1f}%', color='#00f0ff', fontweight='bold', fontsize=8)
+grid_rects = [
+    (0.00, 0.51, 0.32, 0.48),
+    (0.34, 0.51, 0.32, 0.48),
+    (0.68, 0.51, 0.32, 0.48),
+    (0.00, 0.00, 0.32, 0.48),
+    (0.34, 0.00, 0.32, 0.48),
+    (0.68, 0.00, 0.32, 0.48)
+]
 
-ax3.set_yticks(y_pos + 0.25)
-ax3.set_yticklabels(importances.index, color='#e0f7fa', fontsize=8)
-ax3.set_xlabel('Importance (%)', color='#80f7ff', fontweight='bold')
-ax3.view_init(elev=20, azim=-45)
-ax3.set_title('Figure 3: 3D Isometric Feature Importance Pillars', color='#00f0ff', fontsize=11, fontweight='bold')
+for i, (feat, val) in enumerate(feat_importances.items()):
+    rx, ry, rw, rh = grid_rects[i]
+    pct = (val / total_imp) * 100
+    rect_patch = patches.Rectangle((rx, ry), rw, rh, linewidth=2, edgecolor='white', facecolor=tree_colors[i])
+    ax3.add_patch(rect_patch)
+    ax3.text(rx + rw/2, ry + rh/2, f"{feat}\n{pct:.1f}%", ha='center', va='center', 
+             color='white', fontweight='bold', fontsize=10.5, multialignment='center')
 
-fig4 = plt.figure(figsize=(9, 6), facecolor=BG_COLOR)
-ax4 = fig4.add_subplot(111, projection='3d')
-apply_3d_style(ax4)
+ax3.set_xlim(0, 1)
+ax3.set_ylim(0, 1)
+ax3.set_title('3. Feature Importance Analysis', fontsize=12, fontweight='bold', pad=15)
+ax3.axis('off')
 
-cm = confusion_matrix(Y_test, predictions)
-tn, fp, fn, tp = cm.ravel()
+fig4, ax4 = plt.subplots(figsize=(8, 6), facecolor=BRIGHT_BG)
+ax4.set_facecolor(BRIGHT_BG)
 
-xpos = [0, 1, 0, 1]
-ypos = [0, 0, 1, 1]
-zpos = [0, 0, 0, 0]
+cm = confusion_matrix(Y_test, y_pred)
+sns.heatmap(cm, annot=True, fmt='d', cmap='YlGnBu', cbar=True, ax=ax4,
+            annot_kws={'size': 14, 'weight': 'bold'},
+            xticklabels=['Non-Popular', 'Popular'],
+            yticklabels=['Non-Popular', 'Popular'])
 
-dx = [0.5, 0.5, 0.5, 0.5]
-dy = [0.5, 0.5, 0.5, 0.5]
-dz = [tn, fp, fn, tp]
+ax4.set_title('4. Detailed Model Confusion Matrix', fontsize=12, fontweight='bold', pad=15)
+ax4.set_xlabel('Predicted Label', fontweight='bold', color='#334155')
+ax4.set_ylabel('True Label', fontweight='bold', color='#334155')
 
-bar_colors = ['#00f0ff', '#ff0055', '#ff9900', '#00ff88']
-ax4.bar3d(xpos, ypos, zpos, dx, dy, dz, color=bar_colors, edgecolor='#030b1e', alpha=0.85)
+fig5, ax5 = plt.subplots(figsize=(9, 6), facecolor=BRIGHT_BG)
+ax5.set_facecolor(BRIGHT_BG)
 
-labels = [f"TN: {tn}", f"FP: {fp}", f"FN: {fn}", f"TP: {tp}"]
-for i in range(4):
-    ax4.text(xpos[i]+0.1, ypos[i]+0.1, dz[i]+5, labels[i], color='#ffffff', fontweight='bold', fontsize=9)
+max_pop_yr = df_valid.groupby('Release_Year')['Downloads'].mean().idxmax()
 
-ax4.set_xticks([0.25, 1.25])
-ax4.set_xticklabels(['Actual Non-Pop', 'Actual Pop'], color='#e0f7fa', fontsize=8)
-ax4.set_yticks([0.25, 1.25])
-ax4.set_yticklabels(['Pred Non-Pop', 'Pred Pop'], color='#e0f7fa', fontsize=8)
-ax4.set_zlabel('Sample Count', color='#80f7ff', fontweight='bold')
-ax4.view_init(elev=22, azim=-48)
-ax4.set_title('Figure 4: 3D Block Towers - Confusion Matrix', color='#00f0ff', fontsize=11, fontweight='bold')
+cards = [
+    {'title': 'Model Accuracy', 'value': f'{acc_score:.1f}%', 'color': '#2563eb', 'rect': (0.05, 0.55, 0.42, 0.38)},
+    {'title': 'Total Books Analyzed', 'value': f'{len(df):,}', 'color': '#10b981', 'rect': (0.53, 0.55, 0.42, 0.38)},
+    {'title': 'Peak Download Year', 'value': f'{max_pop_yr}', 'color': '#f59e0b', 'rect': (0.05, 0.08, 0.42, 0.38)},
+    {'title': 'Median Downloads', 'value': f'{int(download_threshold)}', 'color': '#ef4444', 'rect': (0.53, 0.08, 0.42, 0.38)}
+]
 
-# Ekbare Shob Graph Open Korar Jonno Single plt.show()
+for card in cards:
+    rx, ry, rw, rh = card['rect']
+    card_bg = patches.FancyBboxPatch((rx, ry), rw, rh, boxstyle="round,pad=0.03", 
+                                     facecolor=card['color'], edgecolor='none', alpha=0.95)
+    ax5.add_patch(card_bg)
+    ax5.text(rx + rw/2, ry + rh*0.65, card['title'], ha='center', va='center', 
+             color='#ffffff', fontsize=11, fontweight='bold')
+    ax5.text(rx + rw/2, ry + rh*0.35, card['value'], ha='center', va='center', 
+             color='#ffffff', fontsize=18, fontweight='bold')
+
+ax5.set_xlim(0, 1)
+ax5.set_ylim(0, 1)
+ax5.set_title('5. Executive Performance Overview', fontsize=12, fontweight='bold', pad=15)
+ax5.axis('off')
+
 plt.show()
